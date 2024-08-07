@@ -14,6 +14,18 @@ properties:
     type: boolean
     description: Last column address is mapped to first segment
 
+  rotation:
+    type: int
+    default: 0
+    enum:
+      - 0
+      - 90
+      - 180
+      - 270
+    description:
+      Display rotation (CW) in degrees.
+      If not defined, rotation is off by default.
+
   reset-gpios:
     type: phandle-array
     required: true
