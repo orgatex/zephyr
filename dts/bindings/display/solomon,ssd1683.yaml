@@ -1,0 +1,9 @@
+---
+# Copyright (c) 2024 Orgatex GmbH
+# SPDX-License-Identifier: LicenseRef-Proprietary
+
+description: Solomon Systech SSD1683 300x400 EPD display controller
+
+compatible: "solomon,ssd1683"
+
+include: solomon,ssd16xx-common.yaml
