@@ -1,0 +1,22 @@
+# Copyright (c) 2024 Orgatex GmbH
+
+# SPDX-License-Identifier: Apache 2.0
+
+config BQ35100
+	bool "BQ35100 Fuel Gauge"
+	default y
+	depends on DT_HAS_TI_BQ35100_ENABLED
+	select I2C
+	help
+	  Enable I2C-based driver for BQ35100 Fuel Gauge.
+
+if BQ35100
+
+config BQ35100_MAX_RETRIES
+	int "Status change retries"
+	default 3
+	help
+	  Set the maximum number of retries
+	  (read/write) for specific registers
+
+endif # BQ35100
