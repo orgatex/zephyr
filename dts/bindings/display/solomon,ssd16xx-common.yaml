@@ -83,3 +83,11 @@ child-binding:
     gate-line-width:
       type: int
       description: Gate line width override.
+
+    display-off-sequence:
+      type: int
+      description: display off sequence override.
+
+    ctrl1:
+      type: uint8-array
+      description: CTRL1 sequence control values
