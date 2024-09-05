@@ -1004,38 +1004,6 @@ static struct ssd16xx_quirks quirks_solomon_ssd1683 = {
 	SSD16XX_MAKE_ARRAY_OPT(n, lut);                                                            \
 	SSD16XX_MAKE_ARRAY_OPT(n, gdv);                                                            \
 	SSD16XX_MAKE_ARRAY_OPT(n, sdv);                                                            \
-                                                                                                   \
-	static const struct ssd16xx_profile ssd16xx_profile_##n = {                                \
-		.lut = SSD16XX_ASSIGN_ARRAY(n, lut),                                               \
-		.gdv = SSD16XX_ASSIGN_ARRAY(n, gdv),                                               \
-		.sdv = SSD16XX_ASSIGN_ARRAY(n, sdv),                                               \
-		.vcom = DT_PROP_OR(n, vcom, 0),                                                    \
-		.override_vcom = DT_NODE_HAS_PROP(n, vcom),                                        \
-		.bwf = DT_PROP_OR(n, border_waveform, 0),                                          \
-		.override_bwf = DT_NODE_HAS_PROP(n, border_waveform),                              \
-		.dummy_line = DT_PROP_OR(n, dummy_line, 0),                                        \
-		.override_dummy_line = DT_NODE_HAS_PROP(n, dummy_line),                            \
-		.gate_line_width = DT_PROP_OR(n, gate_line_width, 0),                              \
-		.override_gate_line_width = DT_NODE_HAS_PROP(n, gate_line_width),                  \
-	};
-
-#define SOFTSTART_ASSIGN(n)                                                                        \
-	.softstart = {                                                                             \
-		.data = softstart_##n,                                                             \
-		.len = sizeof(softstart_##n),                                                      \
-	},
-
-#define SSD16XX_MAKE_ARRAY_OPT(n, p) static uint8_t data_##n##_##p[] = DT_PROP_OR(n, p, {})
-
-#define SSD16XX_ASSIGN_ARRAY(n, p)                                                                 \
-	{                                                                                          \
-		.data = data_##n##_##p, .len = sizeof(data_##n##_##p),                             \
-	}
-
-#define SSD16XX_PROFILE(n)                                                                         \
-	SSD16XX_MAKE_ARRAY_OPT(n, lut);                                                            \
-	SSD16XX_MAKE_ARRAY_OPT(n, gdv);                                                            \
-	SSD16XX_MAKE_ARRAY_OPT(n, sdv);                                                            \
 	SSD16XX_MAKE_ARRAY_OPT(n, ctrl1);                                                          \
                                                                                                    \
 	static const struct ssd16xx_profile ssd16xx_profile_##n = {                                \
