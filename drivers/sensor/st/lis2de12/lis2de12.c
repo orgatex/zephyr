@@ -25,6 +25,502 @@ LOG_MODULE_REGISTER(LIS2DE12, CONFIG_SENSOR_LOG_LEVEL);
 
 static const uint16_t lis2de12_odr_map[10] = { 0, 1, 10, 25, 50, 100, 200, 400, 1620, 5376};
 
+#ifdef CONFIG_SENSOR_LOG_LEVEL_DBG
+static uint8_t reg_buffer[200];
+
+int lis2de12_print_registers(const struct device *dev)
+{
+
+	const struct lis2de12_config *cfg = dev->config;
+	stmdev_ctx_t *ctx = (stmdev_ctx_t *)&cfg->ctx;
+
+	LOG_DBG("LIS2DE12 Register Dump:");
+
+	uint8_t reg = 0;
+	uint8_t reg_value = 0;
+
+	reg = LIS2DE12_STATUS_REG_AUX;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_STATUS_REG_AUX, "LIS2DE12_STATUS_REG_AUX",
+		reg_value);
+	LOG_DBG("\tTOR=%s", ((reg_value) & (1 << (7 - 2)) ? true : false)
+			? "new temperature has overwritten the previous data"
+				    : "no overrun has occurred");
+	LOG_DBG("\tTDA=%s", ((reg_value) & (1 << (7 - 5)) ? true : false)
+			? "new temperature is available"
+			: "new temperature data is not yet available");
+
+	reg = LIS2DE12_OUT_TEMP_L;
+	if (lis2de12_read_reg(ctx, reg, &reg_buffer[0], 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	reg = LIS2DE12_OUT_TEMP_H;
+	if (lis2de12_read_reg(ctx, reg, &reg_buffer[1], 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_OUT_TEMP_L, "LIS2DE12_OUT_TEMP_L",
+		reg_buffer[0]);
+	LOG_DBG("\tTemperatur=%d C", (int16_t)((reg_buffer[1] << 8) | reg_buffer[0]));
+
+	reg = LIS2DE12_WHO_AM_I;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_WHO_AM_I, "LIS2DE12_WHO_AM_I", reg_value);
+	LOG_DBG("\tShould be 0x33=%02X", reg_value);
+
+	reg = LIS2DE12_CTRL_REG0;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_CTRL_REG0, "LIS2DE12_CTRL_REG0", reg_value);
+	LOG_DBG("\tSDO_PU_DISC=%s", ((reg_value) & (1 << (7 - 0)) ? true : false)
+			? "pull-up disconnected to SDO/SA0 pin"
+					    : "pull-up connected to SDO/SA0 pin");
+	LOG_DBG("\tDevice:%s", ((reg_value) & (1 << (7 - 1)) ? true : false) == 0 &&
+				((reg_value) & (1 << (7 - 2)) ? true : false) == 0 &&
+				((reg_value) & (1 << (7 - 3)) ? true : false) == 1 &&
+				((reg_value) & (1 << (7 - 4)) ? true : false) == 0 &&
+				((reg_value) & (1 << (7 - 5)) ? true : false) == 0 &&
+				((reg_value) & (1 << (7 - 6)) ? true : false) == 0 &&
+				((reg_value) & (1 << (7 - 7)) ? true : false) == 0
+			? "Normal Operation"
+				       : "ERROR");
+	LOG_DBG("\t1=%d,2=%d,3=%d,4=%d,5=%d,6=%d,7=%d",
+		((reg_value) & (1 << (7 - 1)) ? true : false),
+		((reg_value) & (1 << (7 - 2)) ? true : false),
+		((reg_value) & (1 << (7 - 3)) ? true : false),
+		((reg_value) & (1 << (7 - 4)) ? true : false),
+		((reg_value) & (1 << (7 - 5)) ? true : false),
+		((reg_value) & (1 << (7 - 6)) ? true : false),
+		((reg_value) & (1 << (7 - 7)) ? true : false));
+
+	reg = LIS2DE12_TEMP_CFG_REG;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_TEMP_CFG_REG, "LIS2DE12_TEMP_CFG_REG",
+		reg_value);
+	LOG_DBG("\tTemperaturEnable=%s",
+		((reg_value) & (1 << (7 - 0)) ? true : false) == 1 &&
+				((reg_value) & (1 << (7 - 1)) ? true : false) == 0
+			? "Enabled"
+			: "Disabled");
+
+	reg = LIS2DE12_CTRL_REG1;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	uint8_t odr_raw = ((reg_value) & (1 << (7 - 0)) ? true : false) * 8 +
+			  ((reg_value) & (1 << (7 - 1)) ? true : false) * 4 +
+			  ((reg_value) & (1 << (7 - 2)) ? true : false) * 2 +
+			  ((reg_value) & (1 << (7 - 3)) ? true : false) * 1;
+	uint16_t odr = lis2de12_odr_map[odr_raw];
+
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_CTRL_REG1, "LIS2DE12_CTRL_REG1", reg_value);
+	LOG_DBG("\tODR=%d Hz, %d", odr, odr_raw);
+	LOG_DBG("\tLPen=%s", ((reg_value) & (1 << (7 - 4)) ? true : false) ? "Normal" : "ERROR");
+	LOG_DBG("\tZen=%s", ((reg_value) & (1 << (7 - 5)) ? true : false) ? "enabled" : "disabled");
+	LOG_DBG("\tYen=%s", ((reg_value) & (1 << (7 - 6)) ? true : false) ? "enabled" : "disabled");
+	LOG_DBG("\tXen=%s", ((reg_value) & (1 << (7 - 7)) ? true : false) ? "enabled" : "disabled");
+
+	reg = LIS2DE12_CTRL_REG2;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+
+	uint8_t hpm = ((reg_value) & (1 << (7 - 0)) ? true : false) * 2 +
+		      ((reg_value) & (1 << (7 - 1)) ? true : false);
+
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_CTRL_REG2, "LIS2DE12_CTRL_REG2", reg_value);
+	LOG_DBG("\tHighpass=%s", hpm == 0
+					 ? "Normal mode (reset by reading REFERENCE (26h) register)"
+		: hpm == 1 ? "Reference signal for filtering"
+		: hpm == 2 ? "Normal Mode"
+		: hpm == 3 ? "Autoreset on interrupt event"
+					    : "none");
+	LOG_DBG("\tHPCF=%d%d", ((reg_value) & (1 << (7 - 2)) ? true : false),
+		((reg_value) & (1 << (7 - 3)) ? true : false));
+	LOG_DBG("\tFDS=%s", ((reg_value) & (1 << (7 - 4)) ? true : false)
+				    ? "data from internal filter sent to output register and FIFO"
+				    : "internal filter bypassed");
+	LOG_DBG("\tHPCLICK=%s",
+		((reg_value) & (1 << (7 - 5)) ? true : false) ? "filter enabled" : "bypassed");
+	LOG_DBG("\tHP_IA2=%s",
+		((reg_value) & (1 << (7 - 6)) ? true : false) ? "filter enabled" : "bypassed");
+	LOG_DBG("\tHP_IA1=%s",
+		((reg_value) & (1 << (7 - 7)) ? true : false) ? "filter enabled" : "bypassed");
+
+	reg = LIS2DE12_CTRL_REG3;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_CTRL_REG3, "LIS2DE12_CTRL_REG3", reg_value);
+	LOG_DBG("\tI1_CLICK=%s",
+		((reg_value) & (1 << (7 - 0)) ? true : false) ? "enabled" : "disable");
+	LOG_DBG("\tI1_IA1=%s",
+		((reg_value) & (1 << (7 - 1)) ? true : false) ? "enabled" : "disable");
+	LOG_DBG("\tI1_IA2=%s",
+		((reg_value) & (1 << (7 - 2)) ? true : false) ? "enabled" : "disable");
+	LOG_DBG("\tI1_ZYXDA=%s",
+		((reg_value) & (1 << (7 - 3)) ? true : false) ? "enabled" : "disable");
+	LOG_DBG("\tStatic=%s", ((reg_value) & (1 << (7 - 4)) ? true : false) ? "ERROR" : "Normal");
+	LOG_DBG("\tI1_WTM=%s",
+		((reg_value) & (1 << (7 - 5)) ? true : false) ? "enabled" : "disable");
+	LOG_DBG("\tI1_OVERRUN=%s",
+		((reg_value) & (1 << (7 - 6)) ? true : false) ? "enabled" : "disable");
+
+	reg = LIS2DE12_CTRL_REG4;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+
+	uint8_t fs_raw = ((reg_value) & (1 << (7 - 2)) ? true : false) * 2 +
+			 ((reg_value) & (1 << (7 - 3)) ? true : false);
+	uint8_t fs = 0;
+	switch (fs_raw) {
+	case 0:
+		fs = 2;
+		break;
+	case 1:
+		fs = 4;
+		break;
+	case 2:
+		fs = 8;
+		break;
+	case 3:
+		fs = 16;
+		break;
+	}
+	uint8_t st = ((reg_value) & (1 << (7 - 5)) ? true : false) * 2 +
+		     ((reg_value) & (1 << (7 - 6)) ? true : false);
+
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_CTRL_REG4, "LIS2DE12_CTRL_REG4", reg_value);
+	LOG_DBG("\tBTU=%s",
+		((reg_value) & (1 << (7 - 0)) ? true : false)
+			? "continuous update"
+			: "output registers not updated until MSB and LSB have been read");
+	LOG_DBG("\tStatic=%s", ((reg_value) & (1 << (7 - 1)) ? true : false) ? "ERROR" : "Normal");
+	LOG_DBG("\tFull-Scale=%d: %02X g", fs, fs_raw);
+	LOG_DBG("\tStatic=%s", ((reg_value) & (1 << (7 - 4)) ? true : false) ? "ERROR" : "Normal");
+	LOG_DBG("\tSelfTest=%s", st == 0   ? "Normal"
+		: st == 1 ? "Test 0"
+		: st == 2 ? "Test 1"
+					   : "none");
+	LOG_DBG("\tSIM=%s", ((reg_value) & (1 << (7 - 4)) ? true : false) ? "3-wire interface"
+							      : "4-wire interface");
+
+	reg = LIS2DE12_CTRL_REG5;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_CTRL_REG5, "LIS2DE12_CTRL_REG5", reg_value);
+	LOG_DBG("\tBoot=%s", ((reg_value) & (1 << (7 - 0)) ? true : false) ? "reboot memory content"
+									   : "normal mode");
+	LOG_DBG("\tFIFO_EN=%s",
+		((reg_value) & (1 << (7 - 1)) ? true : false) ? "enabled" : "disabled");
+	LOG_DBG("\tStatic=%s", ((reg_value) & (1 << (7 - 2)) ? true : false) ? "ERROR" : "Normal");
+	LOG_DBG("\tStatic=%s", ((reg_value) & (1 << (7 - 3)) ? true : false) ? "ERROR" : "Normal");
+	LOG_DBG("\tLIR_INT1=%s", ((reg_value) & (1 << (7 - 4)) ? true : false)
+					 ? "interrupt request latched"
+					 : "interrupt request not latched");
+	LOG_DBG("\tD4D_INT1=%s", ((reg_value) & (1 << (7 - 5)) ? true : false)
+			? "4D enable: 4D detection is enabled on INT1 pin when 6D "
+			  "bit on INT1_CFG (30h) is set to 1"
+					 : "disabled");
+	LOG_DBG("\tLIR_INT2=%s", ((reg_value) & (1 << (7 - 6)) ? true : false)
+					 ? "interrupt request latched"
+					 : "interrupt request not latched");
+	LOG_DBG("\tD4D_INT2=%s", ((reg_value) & (1 << (7 - 7)) ? true : false)
+			? "4D enable: 4D detection is enabled on INT2 pin when 6D "
+			  "bit on INT2_CFG (34h) is set to 1"
+					 : "disabled");
+
+	reg = LIS2DE12_CTRL_REG6;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_CTRL_REG6, "LIS2DE12_CTRL_REG6", reg_value);
+	LOG_DBG("\tClick on Int2=%s",
+		((reg_value) & (1 << (7 - 0)) ? true : false) ? "enabled" : "disabled");
+	LOG_DBG("\tInt1 func on Int2Pin=%s",
+		((reg_value) & (1 << (7 - 1)) ? true : false) ? "enabled" : "disabled");
+	LOG_DBG("\tInt2 func on Int2Pin=%s",
+		((reg_value) & (1 << (7 - 2)) ? true : false) ? "enabled" : "disabled");
+	LOG_DBG("\tBoot on Int2Pin=%s",
+		((reg_value) & (1 << (7 - 3)) ? true : false) ? "enabled" : "disabled");
+	LOG_DBG("\tActivity in Int2Pin=%s",
+		((reg_value) & (1 << (7 - 4)) ? true : false) ? "enabled" : "disabled");
+	LOG_DBG("\tStatic=%s", ((reg_value) & (1 << (7 - 5)) ? true : false) ? "ERROR" : "normal");
+	LOG_DBG("\tStatic=%s polarity=%s",
+		((reg_value) & (1 << (7 - 6)) ? true : false) ? "active-low" : "active-high",
+		((reg_value) & (1 << (7 - 7)) ? true : false) ? "ERROR" : "normal");
+
+	reg = LIS2DE12_REFERENCE;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_REFERENCE, "LIS2DE12_REFERENCE", reg_value);
+	LOG_DBG("\tRef=%d", reg_value);
+
+	reg = LIS2DE12_STATUS_REG;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_STATUS_REG, "LIS2DE12_STATUS_REG", reg_value);
+	LOG_DBG("\tZYXOR=%s",
+		((reg_value) & (1 << (7 - 0)) ? true : false) ? "overrun" : "no overrun");
+	LOG_DBG("\tZOR=%s",
+		((reg_value) & (1 << (7 - 1)) ? true : false) ? "overrun" : "no overrun");
+	LOG_DBG("\tYOR=%s",
+		((reg_value) & (1 << (7 - 2)) ? true : false) ? "overrun" : "no overrun");
+	LOG_DBG("\tXOR=%s",
+		((reg_value) & (1 << (7 - 3)) ? true : false) ? "overrun" : "no overrun");
+	LOG_DBG("\tZYXDA=%s",
+		((reg_value) & (1 << (7 - 4)) ? true : false) ? "new data" : "old data");
+	LOG_DBG("\tZDA=%s",
+		((reg_value) & (1 << (7 - 5)) ? true : false) ? "new data" : "old data");
+	LOG_DBG("\tYDA=%s",
+		((reg_value) & (1 << (7 - 6)) ? true : false) ? "new data" : "old data");
+	LOG_DBG("\tXDA=%s",
+		((reg_value) & (1 << (7 - 7)) ? true : false) ? "new data" : "old data");
+
+	reg = LIS2DE12_FIFO_READ_START;
+	if (lis2de12_read_reg(ctx, reg, reg_buffer, 192) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	for (int a = 0; a < 32; a++) {
+		LOG_DBG("REG:0x%02X, %s : 0x%02X : nth=%2d x=%5d,y=%5d,z=%5d",
+			LIS2DE12_FIFO_READ_START, "LIS2DE12_FIFO_READ_START", 0, a,
+			reg_buffer[a * 6], reg_buffer[a * 6 + 2], reg_buffer[a * 6 + 4]);
+	}
+
+	reg = LIS2DE12_OUT_X_H;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_OUT_X_H, "LIS2DE12_OUT_X_H", reg_value);
+	LOG_DBG("\tX=%5d", reg_value);
+
+	reg = LIS2DE12_OUT_Y_H;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_OUT_Y_H, "LIS2DE12_OUT_Y_H", reg_value);
+	LOG_DBG("\tY=%5d", reg_value);
+
+	reg = LIS2DE12_OUT_Z_H;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_OUT_Z_H, "LIS2DE12_OUT_Z_H", reg_value);
+	LOG_DBG("\tZ=%5d", reg_value);
+
+	reg = LIS2DE12_FIFO_CTRL_REG;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	uint8_t fm = ((reg_value) & (1 << (7 - 0)) ? true : false) * 2 +
+		     ((reg_value) & (1 << (7 - 1)) ? true : false);
+	uint8_t fth = ((reg_value) & (1 << (7 - 3)) ? true : false) * 16 +
+		      ((reg_value) & (1 << (7 - 4)) ? true : false) * 8 +
+		      ((reg_value) & (1 << (7 - 5)) ? true : false) * 4 +
+		      ((reg_value) & (1 << (7 - 6)) ? true : false) * 2 +
+		      ((reg_value) & (1 << (7 - 7)) ? true : false);
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_FIFO_CTRL_REG, "LIS2DE12_FIFO_CTRL_REG",
+		reg_value);
+	LOG_DBG("\tFifo Mode:%s", fm == 0   ? "bypass"
+		: fm == 1 ? "Fifo"
+		: fm == 2 ? "Stream"
+		: fm == 3 ? "Stream to Fifo"
+					    : "none");
+	LOG_DBG("\tTriggerSelection=%s",
+		((reg_value >> 2)) ? "trigger event allows triggering signal on INT2"
+				   : "trigger event allows triggering signal on INT1");
+	LOG_DBG("\tFTH=%d", fth);
+
+	reg = LIS2DE12_FIFO_SRC_REG;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	uint8_t FSS = reg_value & 0x0F;
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_FIFO_SRC_REG, "LIS2DE12_FIFO_SRC_REG",
+		reg_value);
+	LOG_DBG("\tWTM=%s", ((reg_value >> 0)) ? "watermark level exceeded" : "normal");
+	LOG_DBG("\tOver_Fifo=%s", ((reg_value >> 1)) ? "overrun" : "no overrun");
+	LOG_DBG("\tFifo Empty=%s", ((reg_value >> 2)) ? "empty" : "samples in fifo");
+	LOG_DBG("\tSamples in Fifo=%d", FSS);
+
+	reg = LIS2DE12_INT1_CFG;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_INT1_CFG, "LIS2DE12_INT1_CFG", reg_value);
+	reg = LIS2DE12_INT1_SRC;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_INT1_SRC, "LIS2DE12_INT1_SRC", reg_value);
+	reg = LIS2DE12_INT1_THS;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_INT1_THS, "LIS2DE12_INT1_THS", reg_value);
+	reg = LIS2DE12_INT1_DURATION;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_INT1_DURATION, "LIS2DE12_INT1_DURATION",
+		reg_value);
+	reg = LIS2DE12_INT2_CFG;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_INT2_CFG, "LIS2DE12_INT2_CFG", reg_value);
+	reg = LIS2DE12_INT2_SRC;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_INT2_SRC, "LIS2DE12_INT2_SRC", reg_value);
+	reg = LIS2DE12_INT2_THS;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_INT2_THS, "LIS2DE12_INT2_THS", reg_value);
+	reg = LIS2DE12_INT2_DURATION;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_INT2_DURATION, "LIS2DE12_INT2_DURATION",
+		reg_value);
+	reg = LIS2DE12_CLICK_CFG;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_CLICK_CFG, "LIS2DE12_CLICK_CFG", reg_value);
+	reg = LIS2DE12_CLICK_SRC;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_CLICK_SRC, "LIS2DE12_CLICK_SRC", reg_value);
+	LOG_DBG("\tStatic=%s", ((reg_value) & (1 << (7 - 0)) ? true : false) ? "ERROR" : "Normal");
+	LOG_DBG("\tInterrupt Active=%s", ((reg_value) & (1 << (7 - 1)) ? true : false)
+						 ? "one or more interrupts"
+						 : "no interrupt generated");
+	LOG_DBG("\tDouble Click=%s",
+		((reg_value) & (1 << (7 - 2)) ? true : false) ? "enabled" : "disabled");
+	LOG_DBG("\tSingle Click=%s",
+		((reg_value) & (1 << (7 - 3)) ? true : false) ? "enabled" : "disabled");
+	LOG_DBG("\tSign=%s",
+		((reg_value) & (1 << (7 - 4)) ? true : false) ? "negative" : "positive");
+	LOG_DBG("\tZClick=%s",
+		((reg_value) & (1 << (7 - 5)) ? true : false) ? "interrupt" : "no interrupt");
+	LOG_DBG("\tYClick=%s",
+		((reg_value) & (1 << (7 - 6)) ? true : false) ? "interrupt" : "no interrupt");
+	LOG_DBG("\tXClick=%s",
+		((reg_value) & (1 << (7 - 7)) ? true : false) ? "interrupt" : "no interrupt");
+
+	reg = LIS2DE12_CLICK_THS;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	uint8_t click_ths = reg_value & 0x7F;
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_CLICK_THS, "LIS2DE12_CLICK_THS", reg_value);
+	LOG_DBG("\tLIR_Click=%s", ((reg_value) & (1 << (7 - 0)) ? true : false)
+			? "Int HIGH for time window"
+					  : "Int HIGH until CLICK_SRC (39h) is read");
+	LOG_DBG("\tTHS=%d", click_ths);
+
+	reg = LIS2DE12_TIME_LIMIT;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_TIME_LIMIT, "LIS2DE12_TIME_LIMIT", reg_value);
+	LOG_DBG("\tClick time limit=%d", reg_value);
+
+	reg = LIS2DE12_TIME_LATENCY;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_TIME_LATENCY, "LIS2DE12_TIME_LATENCY",
+		reg_value);
+	LOG_DBG("\tClick time latency=%d", reg_value);
+
+	reg = LIS2DE12_TIME_WINDOW;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_TIME_WINDOW, "LIS2DE12_TIME_WINDOW", reg_value);
+	LOG_DBG("\tTime window=%d", reg_value);
+
+	reg = LIS2DE12_ACT_THS;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_TIME_WINDOW, "LIS2DE12_ACT_THS", reg_value);
+	LOG_DBG("\tStatic=%s", ((reg_value) & (1 << (7 - 0)) ? true : false) ? "ERROR" : "Normal");
+	LOG_DBG("\tAct=%d", reg_value);
+
+	reg = LIS2DE12_ACT_DUR;
+	if (lis2de12_read_reg(ctx, reg, &reg_value, 1) < 0) {
+		LOG_ERR("Failed to Register 0x%02X", reg);
+		return -EIO;
+	}
+	double actd_lsb = (8.0 * (double)reg_value + 1.0) / odr;
+	LOG_DBG("REG:0x%02X, %s : 0x%02X", LIS2DE12_ACT_DUR, "LIS2DE12_ACT_DUR", reg_value);
+	LOG_DBG("\tActd=%f", actd_lsb);
+
+	return 0;
+}
+#endif
+
 static int lis2de12_freq_to_odr_val(const struct device *dev, uint16_t freq)
 {
 	size_t i;
@@ -333,7 +829,47 @@ static int lis2de12_init_chip(const struct device *dev)
 	LOG_INF("chip id 0x%x", chip_id);
 
 	if (lis2de12_block_data_update_set(ctx, 1) < 0) {
-		LOG_ERR("failed to set BDU");
+		LOG_ERR("failed to set BDU (block_data_update)");
+		return -EIO;
+	}
+	if (lis2de12_fifo_set(ctx, 1) < 0) {
+		LOG_ERR("failed to enable FIFO");
+		return -EIO;
+	}
+	if (lis2de12_fifo_mode_set(ctx, LIS2DE12_BYPASS_MODE) < 0) {
+		LOG_ERR("failed to set fifo mode");
+		return -EIO;
+	}
+	if (lis2de12_fifo_mode_set(ctx, LIS2DE12_DYNAMIC_STREAM_MODE) < 0) {
+		LOG_ERR("failed to set fifo mode");
+		return -EIO;
+	}
+	if (lis2de12_fifo_watermark_set(ctx, 0) < 0) {
+		LOG_ERR("failed to set watermark");
+		return -EIO;
+	}
+	if (lis2de12_self_test_set(ctx, LIS2DE12_ST_DISABLE) < 0) {
+		LOG_ERR("failed to set watermark");
+		return -EIO;
+	}
+	if (lis2de12_fifo_set(ctx, 1) < 0) {
+		LOG_ERR("failed to enable FIFO");
+		return -EIO;
+	}
+	if (lis2de12_fifo_mode_set(ctx, LIS2DE12_BYPASS_MODE) < 0) {
+		LOG_ERR("failed to set fifo mode");
+		return -EIO;
+	}
+	if (lis2de12_fifo_mode_set(ctx, LIS2DE12_DYNAMIC_STREAM_MODE) < 0) {
+		LOG_ERR("failed to set fifo mode");
+		return -EIO;
+	}
+	if (lis2de12_fifo_watermark_set(ctx, 0) < 0) {
+		LOG_ERR("failed to set watermark");
+		return -EIO;
+	}
+	if (lis2de12_self_test_set(ctx, LIS2DE12_ST_DISABLE) < 0) {
+		LOG_ERR("failed to set self test");
 		return -EIO;
 	}
 
@@ -357,7 +893,9 @@ static int lis2de12_init_chip(const struct device *dev)
 #if defined(CONFIG_LIS2DE12_ENABLE_TEMP)
 	lis2de12_temperature_meas_set(ctx, LIS2DE12_TEMP_ENABLE);
 #endif
-
+#ifdef CONFIG_SENSOR_LOG_LEVEL_DBG
+	lis2de12_print_registers(dev);
+#endif
 	return 0;
 }
 
